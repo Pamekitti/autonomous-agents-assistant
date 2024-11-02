@@ -62,7 +62,13 @@ def run_full_turn(agent: Agent, messages: list) -> Response:
             tools=tool_schemas or None,
         )
         message = response.choices[0].message
-        messages.append(message)
+        
+        # Convert message to dict format before appending
+        message_dict = {
+            "role": message.role,
+            "content": message.content or ""
+        }
+        messages.append(message_dict)
 
         if message.content:
             print(f"{current_agent.name}:", message.content)
@@ -78,14 +84,28 @@ def run_full_turn(agent: Agent, messages: list) -> Response:
                 current_agent = result
                 result = f"Transfered to {current_agent.name}. Adopt persona immediately."
 
+            # Convert tool result message to dict format
             result_message = {
                 "role": "tool",
-                "tool_call_id": tool_call.id,
-                "content": result,
+                "content": str(result),
+                "name": tool_call.function.name
             }
             messages.append(result_message)
 
-    return Response(agent=current_agent, messages=messages[num_init_messages:])
+    # Extract only the new messages and ensure they're in dict format
+    new_messages = messages[num_init_messages:]
+    formatted_messages = []
+    for msg in new_messages:
+        if isinstance(msg, dict):
+            formatted_messages.append(msg)
+        else:
+            formatted_messages.append({
+                "role": msg.role,
+                "content": msg.content or "",
+                "name": getattr(msg, "name", None)
+            })
+
+    return Response(agent=current_agent, messages=formatted_messages)
 
 def execute_tool_call(tool_call, tools: Dict, agent_name: str) -> Any:
     name = tool_call.function.name
